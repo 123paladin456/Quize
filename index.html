@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Квиз</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #create-room, #join-room, #game, #leaderboard {
+            text-align: center;
+        }
+        #room-link {
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        #timer {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #ff0000;
+        }
+        #question {
+            font-size: 28px;
+            margin: 20px 0;
+        }
+        .answer-btn {
+            display: block;
+            width: 300px;
+            padding: 10px;
+            margin: 5px auto;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .answer-btn:hover {
+            background-color: #45a049;
+        }
+        .answer-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #leaderboard-table {
+            margin-top: 20px;
+            border-collapse: collapse;
+            width: 80%;
+            max-width: 600px;
+        }
+        #leaderboard-table th, #leaderboard-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        #leaderboard-table th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #error {
+            color: red;
+            margin-top: 10px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="create-room">
+        <h2>Создать комнату для квиза</h2>
+        <input type="text" id="player-name" placeholder="Введите ваше имя">
+        <button onclick="createRoom()">Создать комнату</button>
+        <div id="room-link"></div>
+    </div>
+    <div id="join-room" style="display: none;">
+        <h2>Присоединиться к квизу</h2>
+        <input type="text" id="join-player-name" placeholder="Введите ваше имя">
+        <input type="text" id="room-code" placeholder="Введите код комнаты">
+        <button onclick="joinRoom()">Присоединиться</button>
+        <div id="error"></div>
+    </div>
+    <div id="game" style="display: none;">
+        <div id="timer">10</div>
+        <div id="question"></div>
+        <button class="answer-btn" id="answer1" onclick="submitAnswer(0)"></button>
+        <button class="answer-btn" id="answer2" onclick="submitAnswer(1)"></button>
+        <button class="answer-btn" id="answer3" onclick="submitAnswer(2)"></button>
+        <button class="answer-btn" id="answer4" onclick="submitAnswer(3)"></button>
+    </div>
+    <div id="leaderboard" style="display: none;">
+        <h2>Таблица лидеров</h2>
+        <table id="leaderboard-table">
+            <thead>
+                <tr>
+                    <th>Место</th>
+                    <th>Игрок</th>
+                    <th>Очки</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard-body"></tbody>
+        </table>
+    </div>
+
+    <script type="module">
+        // Импорт Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, set, onValue, push, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        // Конфигурация Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCt7_62tfKbhkhwfbbWXrd4Y5oL2XTdUMU",
+            authDomain: "quize-ba8a5.firebaseapp.com",
+            databaseURL: "https://quize-ba8a5-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "quize-ba8a5",
+            storageBucket: "quize-ba8a5.firebasestorage.app",
+            messagingSenderId: "451731757492",
+            appId: "1:451731757492:web:f5c0536745c05468fcfae1"
+        };
+
+        // Инициализация Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Список вопросов
+        const questions = [
+            { question: "Сколько будет 2 + 2?", answers: ["3", "4", "5", "6"], correct: 1 },
+            { question: "Столица Франции?", answers: ["Париж", "Лондон", "Берлин", "Мадрид"], correct: 0 },
+            { question: "Какая планета ближе всего к Солнцу?", answers: ["Венера", "Меркурий", "Земля", "Марс"], correct: 1 },
+            { question: "Что такое H2O?", answers: ["Кислород", "Вода", "Водород", "Углерод"], correct: 1 },
+            { question: "Кто написал 'Мону Лизу'?", answers: ["Ван Гог", "Пикассо", "Да Винчи", "Моне"], correct: 2 },
+            { question: "Какое животное самое большое?", answers: ["Слон", "Синий кит", "Жираф", "Лев"], correct: 1 },
+            { question: "Какой газ поглощают растения?", answers: ["Кислород", "Азот", "Углекислый газ", "Гелий"], correct: 2 },
+            { question: "Каков квадратный корень из 16?", answers: ["2", "3", "4", "5"], correct: 2 },
+            { question: "Кто написал 'Ромео и Джульетту'?", answers: ["Диккенс", "Шекспир", "Остин", "Хемингуэй"], correct: 1 },
+            { question: "Какой химический символ у золота?", answers: ["Au", "Ag", "Fe", "Cu"], correct: 0 },
+            { question: "Какая страна называется Страной восходящего солнца?", answers: ["Китай", "Япония", "Корея", "Таиланд"], correct: 1 },
+            { question: "Какая река самая длинная в мире?", answers: ["Нил", "Амазонка", "Янцзы", "Миссисипи"], correct: 0 },
+            { question: "Какой элемент имеет атомный номер 1?", answers: ["Гелий", "Водород", "Литий", "Бериллий"], correct: 1 },
+            { question: "Кто открыл пенициллин?", answers: ["Флеминг", "Кюри", "Эдисон", "Тесла"], correct: 0 },
+            { question: "Что является столицей Бразилии?", answers: ["Рио", "Сан-Паулу", "Бразилиа", "Салвадор"], correct: 2 }
+        ];
+
+        let currentRoomId = null;
+        let playerId = null;
+        let playerName = null;
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let timerInterval = null;
+        let selectedQuestions = [];
+
+        // Проверка URL на наличие кода комнаты
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+        if (roomCode) {
+            document.getElementById('create-room').style.display = 'none';
+            document.getElementById('join-room').style.display = 'block';
+            document.getElementById('room-code').value = roomCode;
+        }
+
+        // Создание новой комнаты
+        async function createRoom() {
+            playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                alert('Пожалуйста, введите ваше имя');
+                return;
+            }
+
+            // Генерация случайного кода комнаты
+            const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            currentRoomId = roomCode;
+
+            // Выбор 10 случайных вопросов
+            selectedQuestions = questions.sort(() => 0.5 - Math.random()).slice(0, 10);
+
+            // Инициализация комнаты в Firebase
+            await set(ref(db, `rooms/${roomCode}`), {
+                status: 'waiting',
+                questions: selectedQuestions,
+                players: {},
+                currentQuestion: 0
+            });
+
+            // Добавление игрока как хоста
+            const playerRef = push(ref(db, `rooms/${roomCode}/players`));
+            playerId = playerRef.key;
+            await set(playerRef, {
+                name: playerName,
+                score: 0,
+                answers: {}
+            });
+
+            // Показать ссылку на комнату
+            const link = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            document.getElementById('room-link').innerHTML = `Поделитесь этой ссылкой: <a href="${link}">${link}</a>`;
+            document.getElementById('create-room').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+
+            // Слушать обновления игры
+            listenForGameUpdates(roomCode);
+        }
+
+        // Присоединение к существующей комнате
+        async function joinRoom() {
+            playerName = document.getElementById('join-player-name').value.trim();
+            const roomCode = document.getElementById('room-code').value.trim().toUpperCase();
+            if (!playerName || !roomCode) {
+                document.getElementById('error').textContent = 'Пожалуйста, введите имя и код комнаты';
+                return;
+            }
+
+            const roomRef = ref(db, `rooms/${roomCode}`);
+            const snapshot = await get(roomRef);
+            if (!snapshot.exists()) {
+                document.getElementById('error').textContent = 'Неверный код комнаты';
+                return;
+            }
+
+            currentRoomId = roomCode;
+
+            // Добавление игрока в комнату
+            const playerRef = push(ref(db, `rooms/${roomCode}/players`));
+            playerId = playerRef.key;
+            await set(playerRef, {
+                name: playerName,
+                score: 0,
+                answers: {}
+            });
+
+            document.getElementById('join-room').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+
+            // Слушать обновления игры
+            listenForGameUpdates(roomCode);
+        }
+
+        // Слушать обновления игры
+        function listenForGameUpdates(roomCode) {
+            const roomRef = ref(db, `rooms/${roomCode}`);
+            onValue(roomRef, (snapshot) => {
+                const roomData = snapshot.val();
+                if (!roomData) return;
+
+                if (roomData.status === 'playing') {
+                    selectedQuestions = roomData.questions;
+                    currentQuestionIndex = roomData.currentQuestion || 0;
+                    if (currentQuestionIndex < selectedQuestions.length) {
+                        displayQuestion();
+                        startTimer();
+                    } else {
+                        showLeaderboard(roomData.players);
+                    }
+                } else if (roomData.status === 'finished') {
+                    showLeaderboard(roomData.players);
+                }
+
+                // Хост начинает игру, когда готов
+                if (playerId === Object.keys(roomData.players)[0] && roomData.status === 'waiting') {
+                    document.getElementById('game').innerHTML += '<button onclick="startGame()">Начать игру</button>';
+                }
+            });
+        }
+
+        // Начать игру (только хост)
+        async function startGame() {
+            await update(ref(db, `rooms/${currentRoomId}`), {
+                status: 'playing',
+                currentQuestion: 0
+            });
+        }
+
+        // Показать текущий вопрос
+        function displayQuestion() {
+            const questionData = selectedQuestions[currentQuestionIndex];
+            document.getElementById('question').textContent = questionData.question;
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`answer${i + 1}`);
+                btn.textContent = questionData.answers[i];
+                btn.disabled = false;
+            }
+        }
+
+        // Запустить таймер для вопроса
+        function startTimer() {
+            let timeLeft = 10;
+            document.getElementById('timer').textContent = timeLeft;
+            clearInterval(timerInterval);
+            timerInterval = setInterval(async () => {
+                timeLeft--;
+                document.getElementById('timer').textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    await submitAnswer(-1); // Нет ответа
+                }
+            }, 1000);
+        }
+
+        // Отправить ответ
+        async function submitAnswer(answerIndex) {
+            clearInterval(timerInterval);
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`answer${i + 1}`).disabled = true;
+            }
+
+            const correctIndex = selectedQuestions[currentQuestionIndex].correct;
+            if (answerIndex === correctIndex) {
+                score += 10;
+            }
+
+            // Обновить ответ и очки игрока
+            await update(ref(db, `rooms/${currentRoomId}/players/${playerId}`), {
+                score: score,
+                [`answers/q${currentQuestionIndex}`]: answerIndex
+            });
+
+            // Проверить, ответили ли все игроки
+            const roomRef = ref(db, `rooms/${currentRoomId}`);
+            const snapshot = await get(roomRef);
+            const roomData = snapshot.val();
+            const players = roomData.players;
+            const allAnswered = Object.values(players).every(player => 
+                player.answers && player.answers[`q${currentQuestionIndex}`] !== undefined
+            );
+
+            if (allAnswered) {
+                currentQuestionIndex++;
+                if (currentQuestionIndex < selectedQuestions.length) {
+                    await update(ref(db, `rooms/${currentRoomId}`), {
+                        currentQuestion: currentQuestionIndex
+                    });
+                } else {
+                    await update(ref(db, `rooms/${currentRoomId}`), {
+                        status: 'finished'
+                    });
+                }
+            } else {
+                // Ждать других игроков
+                document.getElementById('question').textContent = 'Ожидание других игроков...';
+            }
+        }
+
+        // Показать таблицу лидеров
+        function showLeaderboard(players) {
+            clearInterval(timerInterval);
+            document.getElementById('game').style.display = 'none';
+            document.getElementById('leaderboard').style.display = 'block';
+
+            // Сортировать игроков по очкам
+            const playerArray = Object.entries(players).map(([id, data]) => ({
+                id,
+                name: data.name,
+                score: data.score
+            }));
+            playerArray.sort((a, b) => b.score - a.score);
+
+            // Заполнить таблицу лидеров
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = '';
+            playerArray.forEach((player, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${player.name}</td>
+                    <td>${player.score}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Удалить комнату через 5 минут
+            setTimeout(() => {
+                remove(ref(db, `rooms/${currentRoomId}`));
+            }, 5 * 60 * 1000);
+        }
+
+        window.createRoom = createRoom;
+        window.joinRoom = joinRoom;
+        window.submitAnswer = submitAnswer;
+        window.startGame = startGame;
+    </script>
+</body>
+</html>
