@@ -1,396 +1,227 @@
+
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Квиз</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-        }
-        #create-room, #join-room, #game, #leaderboard {
-            text-align: center;
-        }
-        #room-link {
-            margin: 10px 0;
-            word-break: break-all;
-        }
-        #timer {
-            font-size: 24px;
-            margin-bottom: 10px;
-            color: #ff0000;
-        }
-        #question {
-            font-size: 28px;
-            margin: 20px 0;
-        }
-        .answer-btn {
-            display: block;
-            width: 300px;
-            padding: 10px;
-            margin: 5px auto;
-            font-size: 18px;
-            cursor: pointer;
-            border: none;
-            border-radius: 5px;
-            background-color: #4CAF50;
-            color: white;
-        }
-        .answer-btn:hover {
-            background-color: #45a049;
-        }
-        .answer-btn:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #leaderboard-table {
-            margin-top: 20px;
-            border-collapse: collapse;
-            width: 80%;
-            max-width: 600px;
-        }
-        #leaderboard-table th, #leaderboard-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-        }
-        #leaderboard-table th {
-            background-color: #4CAF50;
-            color: white;
-        }
-        #error {
-            color: red;
-            margin-top: 10px;
-        }
-        input, button {
-            padding: 8px;
-            margin: 5px;
-            font-size: 16px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer Quiz Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+    #answers button {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      width: 200px;
+      font-size: 16px;
+    }
+    #timer {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
-    <div id="create-room">
-        <h2>Создать комнату для квиза</h2>
-        <input type="text" id="player-name" placeholder="Введите ваше имя">
-        <button onclick="createRoom()">Создать комнату</button>
-        <div id="room-link"></div>
-    </div>
-    <div id="join-room" style="display: none;">
-        <h2>Присоединиться к квизу</h2>
-        <input type="text" id="join-player-name" placeholder="Введите ваше имя">
-        <button onclick="joinRoom()">Присоединиться</button>
-        <div id="error"></div>
-    </div>
-    <div id="game" style="display: none;">
-        <div id="timer">10</div>
-        <div id="question"></div>
-        <button class="answer-btn" id="answer1" onclick="submitAnswer(0)"></button>
-        <button class="answer-btn" id="answer2" onclick="submitAnswer(1)"></button>
-        <button class="answer-btn" id="answer3" onclick="submitAnswer(2)"></button>
-        <button class="answer-btn" id="answer4" onclick="submitAnswer(3)"></button>
-    </div>
-    <div id="leaderboard" style="display: none;">
-        <h2>Таблица лидеров</h2>
-        <table id="leaderboard-table">
-            <thead>
-                <tr>
-                    <th>Место</th>
-                    <th>Игрок</th>
-                    <th>Очки</th>
-                </tr>
-            </thead>
-            <tbody id="leaderboard-body"></tbody>
-        </table>
-    </div>
+  <div id="lobby">
+    <h1>Multiplayer Quiz</h1>
+    <button id="createRoom">Create Room</button>
+    <input type="text" id="roomLink" readonly>
+  </div>
 
-    <script type="module">
-        // Импорт Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getDatabase, ref, set, onValue, push, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  <div id="waitingRoom" class="hidden">
+    <h2>Waiting for players...</h2>
+    <ul id="playerList"></ul>
+    <button id="startGame">Start Game</button>
+  </div>
 
-        // Конфигурация Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyCt7_62tfKbhkhwfbbWXrd4Y5oL2XTdUMU",
-            authDomain: "quize-ba8a5.firebaseapp.com",
-            databaseURL: "https://quize-ba8a5-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "quize-ba8a5",
-            storageBucket: "quize-ba8a5.firebasestorage.app",
-            messagingSenderId: "451731757492",
-            appId: "1:451731757492:web:f5c0536745c05468fcfae1"
-        };
+  <div id="quiz" class="hidden">
+    <div id="timer">10</div>
+    <h2 id="question">Question will appear here</h2>
+    <div id="answers"></div>
+  </div>
 
-        // Инициализация Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+  <div id="results" class="hidden">
+    <h2>Results</h2>
+    <ul id="scoreBoard"></ul>
+  </div>
 
-        // Список вопросов
-        const questions = [
-            { question: "Сколько будет 2 + 2?", answers: ["3", "4", "5", "6"], correct: 1 },
-            { question: "Столица Франции?", answers: ["Париж", "Лондон", "Берлин", "Мадрид"], correct: 0 },
-            { question: "Какая планета ближе всего к Солнцу?", answers: ["Венера", "Меркурий", "Земля", "Марс"], correct: 1 },
-            { question: "Что такое H2O?", answers: ["Кислород", "Вода", "Водород", "Углерод"], correct: 1 },
-            { question: "Кто написал 'Мону Лизу'?", answers: ["Ван Гог", "Пикассо", "Да Винчи", "Моне"], correct: 2 },
-            { question: "Какое животное самое большое?", answers: ["Слон", "Синий кит", "Жираф", "Лев"], correct: 1 },
-            { question: "Какой газ поглощают растения?", answers: ["Кислород", "Азот", "Углекислый газ", "Гелий"], correct: 2 },
-            { question: "Каков квадратный корень из 16?", answers: ["2", "3", "4", "5"], correct: 2 },
-            { question: "Кто написал 'Ромео и Джульетту'?", answers: ["Диккенс", "Шекспир", "Остин", "Хемингуэй"], correct: 1 },
-            { question: "Какой химический символ у золота?", answers: ["Au", "Ag", "Fe", "Cu"], correct: 0 },
-            { question: "Какая страна называется Страной восходящего солнца?", answers: ["Китай", "Япония", "Корея", "Таиланд"], correct: 1 },
-            { question: "Какая река самая длинная в мире?", answers: ["Нил", "Амазонка", "Янцзы", "Миссисипи"], correct: 0 },
-            { question: "Какой элемент имеет атомный номер 1?", answers: ["Гелий", "Водород", "Литий", "Бериллий"], correct: 1 },
-            { question: "Кто открыл пенициллин?", answers: ["Флеминг", "Кюри", "Эдисон", "Тесла"], correct: 0 },
-            { question: "Что является столицей Бразилии?", answers: ["Рио", "Сан-Паулу", "Бразилиа", "Салвадор"], correct: 2 }
-        ];
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, push, onValue, set, get, child, update } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-        let currentRoomId = null;
-        let playerId = null;
-        let playerName = null;
-        let currentQuestionIndex = 0;
-        let score = 0;
-        let timerInterval = null;
-        let selectedQuestions = [];
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt7_62tfKbhkhwfbbWXrd4Y5oL2XTdUMU",
+      authDomain: "quize-ba8a5.firebaseapp.com",
+      databaseURL: "https://quize-ba8a5-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "quize-ba8a5",
+      storageBucket: "quize-ba8a5.firebasestorage.app",
+      messagingSenderId: "451731757492",
+      appId: "1:451731757492:web:f5c0536745c05468fcfae1"
+    };
 
-        // Проверка URL на наличие кода комнаты
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomCode = urlParams.get('room');
-        if (roomCode) {
-            document.getElementById('create-room').style.display = 'none';
-            document.getElementById('join-room').style.display = 'block';
-            // Автоматическое присоединение к комнате
-            document.getElementById('join-room').innerHTML = `
-                <h2>Присоединиться к квизу</h2>
-                <input type="text" id="join-player-name" placeholder="Введите ваше имя">
-                <button onclick="joinRoom('${roomCode}')">Присоединиться</button>
-                <div id="error"></div>
-            `;
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const lobby = document.getElementById('lobby');
+    const waitingRoom = document.getElementById('waitingRoom');
+    const quiz = document.getElementById('quiz');
+    const results = document.getElementById('results');
+    const createRoomBtn = document.getElementById('createRoom');
+    const roomLinkInput = document.getElementById('roomLink');
+    const startGameBtn = document.getElementById('startGame');
+    const playerList = document.getElementById('playerList');
+    const timerEl = document.getElementById('timer');
+    const questionEl = document.getElementById('question');
+    const answersEl = document.getElementById('answers');
+    const scoreBoard = document.getElementById('scoreBoard');
+
+    let roomId = location.hash.replace('#', '') || '';
+    let playerId = 'player_' + Math.random().toString(36).substr(2, 9);
+    let playerName = 'Player ' + playerId.substr(-4);
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let interval;
+    let questions = [];
+
+    createRoomBtn.onclick = async () => {
+      const roomRef = push(ref(db, 'rooms'));
+      roomId = roomRef.key;
+      location.hash = roomId;
+      await set(roomRef, {
+        host: playerId,
+        players: {
+          [playerId]: { name: playerName, score: 0 }
+        },
+        started: false
+      });
+      showWaitingRoom();
+    };
+
+    async function joinRoom() {
+      if (!roomId) return;
+      const roomRef = ref(db, 'rooms/' + roomId);
+      const roomSnap = await get(roomRef);
+      if (roomSnap.exists()) {
+        const data = roomSnap.val();
+        if (!data.players || !data.players[playerId]) {
+          await update(roomRef, {
+            ['players/' + playerId]: { name: playerName, score: 0 }
+          });
         }
-
-        // Создание новой комнаты
-        async function createRoom() {
-            playerName = document.getElementById('player-name').value.trim();
-            if (!playerName) {
-                alert('Пожалуйста, введите ваше имя');
-                return;
-            }
-
-            // Генерация случайного кода комнаты
-            const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-            currentRoomId = roomCode;
-
-            // Выбор 10 случайных вопросов
-            selectedQuestions = questions.sort(() => 0.5 - Math.random()).slice(0, 10);
-
-            // Инициализация комнаты в Firebase
-            await set(ref(db, `rooms/${roomCode}`), {
-                status: 'waiting',
-                questions: selectedQuestions,
-                players: {},
-                currentQuestion: 0
-            });
-
-            // Добавление игрока как хоста
-            const playerRef = push(ref(db, `rooms/${roomCode}/players`));
-            playerId = playerRef.key;
-            await set(playerRef, {
-                name: playerName,
-                score: 0,
-                answers: {}
-            });
-
-            // Показать ссылку на комнату
-            const link = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-            document.getElementById('room-link').innerHTML = `Поделитесь этой ссылкой: <a href="${link}">${link}</a>`;
-            document.getElementById('create-room').style.display = 'none';
-            document.getElementById('game').style.display = 'block';
-
-            // Слушать обновления игры
-            listenForGameUpdates(roomCode);
+        if (data.started) {
+          startQuiz();
+        } else {
+          showWaitingRoom();
         }
+      }
+    }
 
-        // Присоединение к существующей комнате
-        async function joinRoom(roomCode) {
-            playerName = document.getElementById('join-player-name').value.trim();
-            if (!playerName) {
-                document.getElementById('error').textContent = 'Пожалуйста, введите ваше имя';
-                return;
-            }
-
-            const roomRef = ref(db, `rooms/${roomCode}`);
-            const snapshot = await get(roomRef);
-            if (!snapshot.exists()) {
-                document.getElementById('error').textContent = 'Неверный код комнаты';
-                return;
-            }
-
-            currentRoomId = roomCode;
-
-            // Добавление игрока в комнату
-            const playerRef = push(ref(db, `rooms/${roomCode}/players`));
-            playerId = playerRef.key;
-            await set(playerRef, {
-                name: playerName,
-                score: 0,
-                answers: {}
-            });
-
-            document.getElementById('join-room').style.display = 'none';
-            document.getElementById('game').style.display = 'block';
-
-            // Слушать обновления игры
-            listenForGameUpdates(roomCode);
+    function showWaitingRoom() {
+      lobby.classList.add('hidden');
+      waitingRoom.classList.remove('hidden');
+      roomLinkInput.value = location.href;
+      onValue(ref(db, 'rooms/' + roomId + '/players'), snapshot => {
+        playerList.innerHTML = '';
+        snapshot.forEach(child => {
+          const li = document.createElement('li');
+          li.textContent = child.val().name;
+          playerList.appendChild(li);
+        });
+      });
+      onValue(ref(db, 'rooms/' + roomId + '/started'), snapshot => {
+        if (snapshot.val()) {
+          startQuiz();
         }
+      });
+    }
 
-        // Слушать обновления игры
-        function listenForGameUpdates(roomCode) {
-            const roomRef = ref(db, `rooms/${roomCode}`);
-            onValue(roomRef, (snapshot) => {
-                const roomData = snapshot.val();
-                if (!roomData) return;
+    startGameBtn.onclick = () => {
+      update(ref(db, 'rooms/' + roomId), { started: true });
+    };
 
-                if (roomData.status === 'playing') {
-                    selectedQuestions = roomData.questions;
-                    currentQuestionIndex = roomData.currentQuestion || 0;
-                    if (currentQuestionIndex < selectedQuestions.length) {
-                        displayQuestion();
-                        startTimer();
-                    } else {
-                        showLeaderboard(roomData.players);
-                    }
-                } else if (roomData.status === 'finished') {
-                    showLeaderboard(roomData.players);
-                }
+    function startQuiz() {
+      waitingRoom.classList.add('hidden');
+      quiz.classList.remove('hidden');
+      questions = generateQuestions().slice(0, 10);
+      currentQuestionIndex = 0;
+      score = 0;
+      nextQuestion();
+    }
 
-                // Хост начинает игру, когда готов
-                if (playerId === Object.keys(roomData.players)[0] && roomData.status === 'waiting') {
-                    document.getElementById('game').innerHTML += '<button onclick="startGame()">Начать игру</button>';
-                }
-            });
+    function nextQuestion() {
+      if (currentQuestionIndex >= questions.length) {
+        endGame();
+        return;
+      }
+      const q = questions[currentQuestionIndex];
+      questionEl.textContent = q.question;
+      answersEl.innerHTML = '';
+      q.answers.forEach(answer => {
+        const btn = document.createElement('button');
+        btn.textContent = answer;
+        btn.onclick = () => checkAnswer(answer === q.correct);
+        answersEl.appendChild(btn);
+      });
+      let time = 10;
+      timerEl.textContent = time;
+      interval = setInterval(() => {
+        time--;
+        timerEl.textContent = time;
+        if (time === 0) {
+          clearInterval(interval);
+          checkAnswer(false);
         }
+      }, 1000);
+    }
 
-        // Начать игру (только хост)
-        async function startGame() {
-            await update(ref(db, `rooms/${currentRoomId}`), {
-                status: 'playing',
-                currentQuestion: 0
-            });
-        }
+    function checkAnswer(correct) {
+      clearInterval(interval);
+      if (correct) score += 10;
+      currentQuestionIndex++;
+      nextQuestion();
+    }
 
-        // Показать текущий вопрос
-        function displayQuestion() {
-            const questionData = selectedQuestions[currentQuestionIndex];
-            document.getElementById('question').textContent = questionData.question;
-            for (let i = 0; i < 4; i++) {
-                const btn = document.getElementById(`answer${i + 1}`);
-                btn.textContent = questionData.answers[i];
-                btn.disabled = false;
-            }
-        }
+    function endGame() {
+      update(ref(db, 'rooms/' + roomId + '/players/' + playerId), { score });
+      quiz.classList.add('hidden');
+      results.classList.remove('hidden');
+      onValue(ref(db, 'rooms/' + roomId + '/players'), snapshot => {
+        const results = [];
+        snapshot.forEach(child => {
+          results.push({ name: child.val().name, score: child.val().score });
+        });
+        results.sort((a, b) => b.score - a.score);
+        scoreBoard.innerHTML = '';
+        results.forEach((r, i) => {
+          const li = document.createElement('li');
+          li.textContent = `${i + 1}. ${r.name}: ${r.score} points`;
+          scoreBoard.appendChild(li);
+        });
+      }, { onlyOnce: true });
+    }
 
-        // Запустить таймер для вопроса
-        function startTimer() {
-            let timeLeft = 10;
-            document.getElementById('timer').textContent = timeLeft;
-            clearInterval(timerInterval);
-            timerInterval = setInterval(async () => {
-                timeLeft--;
-                document.getElementById('timer').textContent = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    await submitAnswer(-1); // Нет ответа
-                }
-            }, 1000);
-        }
+    function generateQuestions() {
+      return [
+        { question: "Capital of France?", answers: ["Paris", "Berlin", "Rome", "London"], correct: "Paris" },
+        { question: "5 + 7 = ?", answers: ["10", "12", "13", "14"], correct: "12" },
+        { question: "Largest planet?", answers: ["Earth", "Mars", "Jupiter", "Saturn"], correct: "Jupiter" },
+        { question: "Color of sun?", answers: ["Blue", "White", "Yellow", "Red"], correct: "Yellow" },
+        { question: "Water formula?", answers: ["CO2", "H2O", "O2", "HCl"], correct: "H2O" },
+        { question: "Fastest animal?", answers: ["Cheetah", "Tiger", "Eagle", "Falcon"], correct: "Falcon" },
+        { question: "First man on moon?", answers: ["Armstrong", "Gagarin", "Glenn", "Aldrin"], correct: "Armstrong" },
+        { question: "Programming language?", answers: ["Python", "Snake", "Dog", "Lion"], correct: "Python" },
+        { question: "How many days in week?", answers: ["5", "6", "7", "8"], correct: "7" },
+        { question: "HTML stands for?", answers: ["HyperText Markup Language", "Hyper Tool", "Markup Line", "Text Machine"], correct: "HyperText Markup Language" }
+      ];
+    }
 
-        // Отправить ответ
-        async function submitAnswer(answerIndex) {
-            clearInterval(timerInterval);
-            for (let i = 0; i < 4; i++) {
-                document.getElementById(`answer${i + 1}`).disabled = true;
-            }
-
-            const correctIndex = selectedQuestions[currentQuestionIndex].correct;
-            if (answerIndex === correctIndex) {
-                score += 10;
-            }
-
-            // Обновить ответ и очки игрока
-            await update(ref(db, `rooms/${currentRoomId}/players/${playerId}`), {
-                score: score,
-                [`answers/q${currentQuestionIndex}`]: answerIndex
-            });
-
-            // Проверить, ответили ли все игроки
-            const roomRef = ref(db, `rooms/${currentRoomId}`);
-            const snapshot = await get(roomRef);
-            const roomData = snapshot.val();
-            const players = roomData.players;
-            const allAnswered = Object.values(players).every(player => 
-                player.answers && player.answers[`q${currentQuestionIndex}`] !== undefined
-            );
-
-            if (allAnswered) {
-                currentQuestionIndex++;
-                if (currentQuestionIndex < selectedQuestions.length) {
-                    await update(ref(db, `rooms/${currentRoomId}`), {
-                        currentQuestion: currentQuestionIndex
-                    });
-                } else {
-                    await update(ref(db, `rooms/${currentRoomId}`), {
-                        status: 'finished'
-                    });
-                }
-            } else {
-                // Ждать других игроков
-                document.getElementById('question').textContent = 'Ожидание других игроков...';
-            }
-        }
-
-        // Показать таблицу лидеров
-        function showLeaderboard(players) {
-            clearInterval(timerInterval);
-            document.getElementById('game').style.display = 'none';
-            document.getElementById('leaderboard').style.disp
-lay = 'block';
-
-            // Сортировать игроков по очкам
-            const playerArray = Object.entries(players).map(([id, data]) => ({
-                id,
-                name: data.name,
-                score: data.score
-            }));
-            playerArray.sort((a, b) => b.score - a.score);
-
-            // Заполнить таблицу лидеров
-            const tbody = document.getElementById('leaderboard-body');
-            tbody.innerHTML = '';
-            playerArray.forEach((player, index) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>${player.name}</td>
-                    <td>${player.score}</td>
-                `;
-                tbody.appendChild(row);
-            });
-
-            // Удалить комнату через 5 минут
-            setTimeout(() => {
-                remove(ref(db, `rooms/${currentRoomId}`));
-            }, 5 * 60 * 1000);
-        }
-
-        window.createRoom = createRoom;
-        window.joinRoom = joinRoom;
-        window.submitAnswer = submitAnswer;
-        window.startGame = startGame;
-    </script>
+    joinRoom();
+  </script>
 </body>
 </html>
