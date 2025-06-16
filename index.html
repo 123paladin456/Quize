@@ -86,7 +86,6 @@
     <div id="join-room" style="display: none;">
         <h2>Присоединиться к квизу</h2>
         <input type="text" id="join-player-name" placeholder="Введите ваше имя">
-        <input type="text" id="room-code" placeholder="Введите код комнаты">
         <button onclick="joinRoom()">Присоединиться</button>
         <div id="error"></div>
     </div>
@@ -165,7 +164,13 @@
         if (roomCode) {
             document.getElementById('create-room').style.display = 'none';
             document.getElementById('join-room').style.display = 'block';
-            document.getElementById('room-code').value = roomCode;
+            // Автоматическое присоединение к комнате
+            document.getElementById('join-room').innerHTML = `
+                <h2>Присоединиться к квизу</h2>
+                <input type="text" id="join-player-name" placeholder="Введите ваше имя">
+                <button onclick="joinRoom('${roomCode}')">Присоединиться</button>
+                <div id="error"></div>
+            `;
         }
 
         // Создание новой комнаты
@@ -211,11 +216,10 @@
         }
 
         // Присоединение к существующей комнате
-        async function joinRoom() {
+        async function joinRoom(roomCode) {
             playerName = document.getElementById('join-player-name').value.trim();
-            const roomCode = document.getElementById('room-code').value.trim().toUpperCase();
-            if (!playerName || !roomCode) {
-                document.getElementById('error').textContent = 'Пожалуйста, введите имя и код комнаты';
+            if (!playerName) {
+                document.getElementById('error').textContent = 'Пожалуйста, введите ваше имя';
                 return;
             }
 
@@ -353,7 +357,8 @@
         function showLeaderboard(players) {
             clearInterval(timerInterval);
             document.getElementById('game').style.display = 'none';
-            document.getElementById('leaderboard').style.display = 'block';
+            document.getElementById('leaderboard').style.disp
+lay = 'block';
 
             // Сортировать игроков по очкам
             const playerArray = Object.entries(players).map(([id, data]) => ({
